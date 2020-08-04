@@ -8,7 +8,7 @@ from slack import WebClient
 TIMEULAR_ACTIVITY_TO_SLACK_STATUS = {
     'default': {
         'status': '',
-        'emoji': ':thumbs_up:',
+        'emoji': ':thumbsup:',
         'snooze': False
     },
     'Working': {
