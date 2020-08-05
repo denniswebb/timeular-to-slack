@@ -25,7 +25,7 @@ Configure the following environment variables
 | DEBUG_LEVEL | logging level (DEBUG, INFO, WARN, etc. | WARN |
 | DEBUG_BOTO_LEVEL | logging level for boto library | CRITICAL |
 | SLACK_API_TOKEN | Slack App User API Token | |
-| SLACK_SNOOZE_DURATION | duration of snooze in slack when configured | |
+| SLACK_SNOOZE_DURATION | duration in minutes of snooze in slack when configured | 60 |
 | TIMEULAR_API_KEY | Timeular API key | |
 | TIMEULAR_API_SECRET | Timeular API secret | |
 
