@@ -1,3 +1,5 @@
+from typing import Union
+
 import aws_lambda_logging
 import logging
 import os
@@ -7,17 +9,17 @@ from slack import WebClient
 
 TIMEULAR_ACTIVITY_TO_SLACK_STATUS = {
     'default': {
-        'status': '',
+        'text': '',
         'emoji': '',
         'snooze': False
     },
     'Working': {
-        'status': 'Focused Work',
+        'text': 'Focused Work',
         'emoji': ':thinking_face:',
         'snooze': True
     },
     'Meeting': {
-        'status': 'In a meeting',
+        'text': 'In a meeting',
         'emoji': ':calendar:',
         'snooze': True
     }
@@ -52,47 +54,63 @@ class TimeularClient(APIClient):
 
 
 def main(event, context):
-    config = {'DEBUG_LEVEL': os.getenv('DEBUG_LEVEL', 'WARN'),
-              'DEBUG_BOTO_LEVEL': os.getenv('DEBUG_BOTO_LEVEL', 'CRITICAL'),
-              'SLACK_API_TOKEN': os.environ.get('SLACK_API_TOKEN'),
+    aws_lambda_logging.setup(
+        level=os.getenv('DEBUG_LEVEL', 'WARN'),
+        boto_level=os.getenv('DEBUG_BOTO_LEVEL', 'CRITICAL')
+    )
+
+    config = {'SLACK_API_TOKEN': os.environ.get('SLACK_API_TOKEN'),
               'SLACK_SNOOZE_DURATION': os.getenv('SLACK_SNOOZE_DURATION', '60'),
               'TIMEULAR_API_KEY': os.environ.get('TIMEULAR_API_KEY'),
               'TIMEULAR_API_SECRET': os.environ.get('TIMEULAR_API_SECRET')
               }
-
-    aws_lambda_logging.setup(
-        level=config['DEBUG_LEVEL'],
-        boto_level=config['DEBUG_BOTO_LEVEL']
-    )
 
     for c in config:
         if config[c] is None:
             logging.error('Environment variable {} not found.'.format(c))
             return
 
+    logging.debug("Initializing Timeular client")
     api = TimeularClient(api_key=config['TIMEULAR_API_KEY'], api_secret=config['TIMEULAR_API_SECRET'])
+
+    logging.debug("Initializing Slack client")
+    slack_client: WebClient = WebClient(token=config['SLACK_API_TOKEN'])
 
     current_activity: str = 'default'
 
+    logging.debug("Retrieving current Timeular tracking")
     current_tracking = api.get_tracking()['currentTracking']
 
     if current_tracking:
         current_activity = current_tracking['activity']['name']
         logging.debug(f"Timeular tracking activity {current_activity}")
+    else:
+        logging.debug("Timeular not tracking an activity")
 
-    slack_status = TIMEULAR_ACTIVITY_TO_SLACK_STATUS[current_activity]
-    new_status: str = slack_status['status']
-    new_emoji: str = slack_status['emoji']
+    desired_slack_status = TIMEULAR_ACTIVITY_TO_SLACK_STATUS.get(
+        current_activity,
+        TIMEULAR_ACTIVITY_TO_SLACK_STATUS['default'])
+    desired_status_text: str = desired_slack_status['text']
+    desired_status_emoji: str = desired_slack_status['emoji']
+    desired_status_snooze: bool = desired_slack_status['snooze']
 
-    logging.info(f"Setting Slack status to {new_emoji} {new_status}")
-    slack_client: WebClient = WebClient(token=config['SLACK_API_TOKEN'])
-    slack_client.users_profile_set(profile={"status_text": new_status, "status_emoji": new_emoji})
+    current_slack_status = slack_client.users_profile_get()['profile']
+    current_status_text: str = current_slack_status['status_text']
 
-    if slack_status['snooze']:
-        if not slack_client.dnd_info()['snooze_enabled']:
+    logging.debug(f"Testing if \'{current_status_text}\' equals \'{desired_status_text}\'")
+    if current_status_text == desired_status_text:
+        logging.info("Status is already set. Exiting.")
+        return
+
+    logging.info(f"Setting Slack status to {desired_status_emoji} {desired_status_text}")
+    slack_client.users_profile_set(profile={"status_text": desired_status_text, "status_emoji": desired_status_emoji})
+
+    current_slack_snooze = slack_client.dnd_info()['snooze_enabled']
+    if desired_status_snooze:
+        if not current_slack_snooze:
             logging.info(f"Turning Slack snooze on for {config['SLACK_SNOOZE_DURATION']}")
             slack_client.dnd_setSnooze(num_minutes=int(config['SLACK_SNOOZE_DURATION']))
     else:
-        if slack_client.dnd_info()['snooze_enabled']:
-            logging.info(f"Turning Slack snooze off")
+        if current_slack_snooze:
+            logging.info("Turning Slack snooze off")
             slack_client.dnd_endSnooze()
