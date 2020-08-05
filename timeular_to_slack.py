@@ -72,6 +72,8 @@ def main(event, context):
     logging.debug("Retrieving current Timeular tracking")
     current_tracking = api.get_tracking()['currentTracking']
 
+    current_activity: str = ''
+
     if current_tracking:
         current_activity = current_tracking['activity']['name']
         logging.debug(f"Timeular tracking activity {current_activity}")
