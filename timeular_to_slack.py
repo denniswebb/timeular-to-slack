@@ -1,5 +1,3 @@
-from typing import Union
-
 import aws_lambda_logging
 import logging
 import os
