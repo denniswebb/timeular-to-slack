@@ -8,11 +8,6 @@ from apiclient import APIClient, JsonRequestFormatter, JsonResponseHandler, Head
 from slack import WebClient
 
 TIMEULAR_ACTIVITY_TO_SLACK_STATUS = {
-    'default': {
-        'text': '',
-        'emoji': '',
-        'snooze': False
-    },
     'Working': {
         'text': 'Focused Work',
         'emoji': ':thinking_face:',
@@ -76,8 +71,6 @@ def main(event, context):
     logging.debug("Initializing Slack client")
     slack_client: WebClient = WebClient(token=config['SLACK_API_TOKEN'])
 
-    current_activity: str = 'default'
-
     logging.debug("Retrieving current Timeular tracking")
     current_tracking = api.get_tracking()['currentTracking']
 
@@ -89,7 +82,12 @@ def main(event, context):
 
     desired_slack_status = TIMEULAR_ACTIVITY_TO_SLACK_STATUS.get(
         current_activity,
-        TIMEULAR_ACTIVITY_TO_SLACK_STATUS['default'])
+        {
+            'text': '',
+            'emoji': '',
+            'snooze': False
+        }
+    )
     desired_status_text: str = desired_slack_status['text']
     desired_status_emoji: str = desired_slack_status['emoji']
     desired_status_snooze: bool = desired_slack_status['snooze']
